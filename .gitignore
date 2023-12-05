@@ -1,2 +1,2 @@
 .idea/
-auth/migrations
+authentication_service/migrations

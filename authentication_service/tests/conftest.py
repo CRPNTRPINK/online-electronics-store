@@ -10,9 +10,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import text
 from starlette.testclient import TestClient
 
-import auth.app.settings as settings
-from auth.app.db.session import get_db
-from auth.app.main import app
+import authentication_service.app.settings as settings
+from authentication_service.app.db.session import get_db
+from authentication_service.app.main import app
 
 # create async engine for interaction with database
 test_engine = create_async_engine(settings.TEST_DATABASE_URL, future=True, echo=True)

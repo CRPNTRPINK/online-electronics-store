@@ -7,16 +7,16 @@ from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.app.api.models import DeleteUserResponse
-from auth.app.api.models import ShowUser
-from auth.app.api.models import Token, TokenData
-from auth.app.api.models import UpdateUserRequest
-from auth.app.api.models import UserCreate
-from auth.app.auth import create_access_token
-from auth.app.db.dals import UserDAL
-from auth.app.db.models import User
-from auth.app.db.session import get_db
-from auth.app.dependecies import get_current_user
+from authentication_service.app.auth import create_access_token
+from authentication_service.app.db.dals import UserDAL
+from authentication_service.app.db.models import User
+from authentication_service.app.db.session import get_db
+from authentication_service.app.dependecies import get_current_user
+from authentication_service.app.schemas import DeleteUserResponse
+from authentication_service.app.schemas import ShowUser
+from authentication_service.app.schemas import Token, TokenData
+from authentication_service.app.schemas import UpdateUserRequest
+from authentication_service.app.schemas import UserCreate
 
 user_router = APIRouter(prefix="/user", tags=["user"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

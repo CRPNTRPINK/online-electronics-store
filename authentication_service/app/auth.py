@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from jose import JWTError, jwt
 
-from auth.app.api.models import TokenData
+from schemas import TokenData
 
 SECRET_KEY = "a12f5cdea1cb9c0c2a9af16ff7e98c753b9d878ab0d6d50fe4edc0a79644a445"
 ALGORITHM = "HS256"

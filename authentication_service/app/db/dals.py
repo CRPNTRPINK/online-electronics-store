@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.app.db.models import User
+from authentication_service.app.db.models import User
 
 
 class UserDAL:
