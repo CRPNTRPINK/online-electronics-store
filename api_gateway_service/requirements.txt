@@ -1,0 +1,7 @@
+PyYAML~=6.0.1
+uvicorn~=0.24.0.post1
+fastapi~=0.105.0
+multidict~=6.0.4
+pydantic~=2.5.2
+aiohttp~=3.9.1
+python-dotenv~=1.0.0

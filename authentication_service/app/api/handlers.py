@@ -1,22 +1,23 @@
-from typing import Optional, Annotated
+from typing import Optional, Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Row, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from authentication_service.app.auth import create_access_token
-from authentication_service.app.db.dals import UserDAL
-from authentication_service.app.db.models import User
-from authentication_service.app.db.session import get_db
-from authentication_service.app.dependecies import get_current_user
-from authentication_service.app.schemas import DeleteUserResponse
-from authentication_service.app.schemas import ShowUser
-from authentication_service.app.schemas import Token, TokenData
-from authentication_service.app.schemas import UpdateUserRequest
-from authentication_service.app.schemas import UserCreate
+from app.auth import create_access_token
+from app.db.dals import UserDAL
+from app.db.models import User
+from app.db.session import get_db
+from app.dependecies import get_current_user
+from app.schemas import DeleteUserResponse
+from app.schemas import ShowUser
+from app.schemas import Token, TokenData
+from app.schemas import UpdateUserRequest
+from app.schemas import UserCreate
 
 user_router = APIRouter(prefix="/user", tags=["user"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -26,6 +27,12 @@ async def _create_new_user(body: UserCreate, db: AsyncSession) -> User:
     async with db as session:
         async with session.begin():
             user_dal = UserDAL(session)
+            user_exists = await user_dal.get_user_by_email(email=body.email)
+            if user_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Пользователь с email: {body.email} уже существует"
+                )
             hashed_password = get_password_hash(body.password)
             user = await user_dal.create_user(
                 name=body.name,
@@ -51,8 +58,15 @@ async def _get_user_by_id(user_id: UUID, db: AsyncSession) -> Optional[User]:
         async with session.begin():
             user_dal = UserDAL(session)
             user = await user_dal.get_user_by_id(user_id=user_id)
-
             return user
+
+
+async def _get_users(db: AsyncSession) -> Optional[Sequence[Row[tuple[User]]]]:
+    async with db as session:
+        async with session.begin():
+            user_dal = UserDAL(session)
+            users = await user_dal.get_users()
+            return users
 
 
 async def _authenticate_user(email: str, db: AsyncSession) -> Optional[User]:
@@ -66,10 +80,16 @@ async def _authenticate_user(email: str, db: AsyncSession) -> Optional[User]:
 async def _update_user(
         user_id: UUID, body: UpdateUserRequest, db: AsyncSession
 ) -> Optional[User]:
+    body = body.model_dump(exclude_none=True)
+    if not body:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one parameter for user update info should be provided",
+        )
     async with db as session:
         async with session.begin():
             user_dal = UserDAL(session)
-            body = body.model_dump(exclude_none=True)
+            body = body
             user = await user_dal.update_user(user_id=user_id, **body)
 
             return user
@@ -117,8 +137,8 @@ async def delete_user(
     return DeleteUserResponse(user_id=deleted_user_id)
 
 
-@user_router.get("/", response_model=ShowUser)
-async def get_user_by_id(user_id: UUID, db: AsyncSession = Depends(get_db)) -> ShowUser:
+@user_router.get("/get-user-by-id", response_model=ShowUser)
+async def get_user_by_id(user_id: UUID, db: AsyncSession = Depends(get_db)):
     user = await _get_user_by_id(user_id, db)
 
     if not user:
@@ -130,18 +150,23 @@ async def get_user_by_id(user_id: UUID, db: AsyncSession = Depends(get_db)) -> S
     return ShowUser.model_validate(user)
 
 
+@user_router.get('/', response_model=List[ShowUser])
+async def get_users(db: AsyncSession = Depends(get_db)):
+    users = await _get_users(db)
+    if not users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Пользователи не найдены",
+        )
+    return [ShowUser.model_validate(user[0]) for user in users]
+
+
 @user_router.put("/", response_model=ShowUser)
 async def update_user(
         user_id: UUID,
         body: UpdateUserRequest,
         db: AsyncSession = Depends(get_db)
 ) -> ShowUser:
-    if not body.model_dump(exclude_none=True):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one parameter for user update info should be provided",
-        )
-
     try:
         user = await _update_user(user_id, body, db)
 
@@ -156,8 +181,9 @@ async def update_user(
     return ShowUser.model_validate(user)
 
 
-@user_router.post("/token", response_model=Token)
-async def login_for_access_token(form_data=Depends(OAuth2PasswordRequestForm), db: AsyncSession = Depends(get_db)):
+@user_router.post("/token")
+async def login_for_access_token(form_data=Depends(OAuth2PasswordRequestForm),
+                                 db: AsyncSession = Depends(get_db)):
     user = await _authenticate_user(form_data.username, db)
 
     if not user:
@@ -173,10 +199,13 @@ async def login_for_access_token(form_data=Depends(OAuth2PasswordRequestForm), d
         )
 
     role = 1  # TODO добавить роли
-    access_token = create_access_token(data={"sub": str(user.user_id), "email": user.email, "role": role})
-    return Token(access_token=access_token, token_type="bearer")
+    access_token = create_access_token(data={"sub": str(user.user_id), "role": role})
+    response = JSONResponse(status_code=status.HTTP_201_CREATED,
+                            content={"message": "Operation completed successfully"})
+    response.set_cookie(key="token", value=f"Bearer {access_token}")
+    return response
 
 
-@user_router.post("/token_verify", response_model=TokenData)
+@user_router.get("/token_verify", response_model=TokenData)
 def verify_token(user: Annotated[ShowUser, Depends(get_current_active_user)]):
     return user

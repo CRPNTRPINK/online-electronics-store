@@ -8,7 +8,12 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
-class User(Base):
+class CustomBase(Base):
+    __abstract__ = True
+    __table_args__ = {'schema': 'auth'}
+
+
+class User(CustomBase):
     __tablename__ = "users"
 
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -o k8s
+    kompose.service.type: LoadBalancer
+    kompose.version: 1.31.2 (HEAD)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: shopping-cart
+  name: shopping-cart
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      io.kompose.service: shopping-cart
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -o k8s
+        kompose.service.type: LoadBalancer
+        kompose.version: 1.31.2 (HEAD)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/online-electronic-store-online-electronic-store-network: "true"
+        io.kompose.service: shopping-cart
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: postgres
+          command: [ 'sh', '-c', 'until pg_isready -h db -p 5432; do echo waiting for db; sleep 2; done;' ]
+      containers:
+        - args:
+            - bash
+            - -c
+            - alembic upgrade heads && python app/main.py
+          env:
+            - name: DEV
+              value: "true"
+            - name: IS_LOCAL
+              value: "false"
+          image: agiev/online_electronic_store-shopping-cart
+          name: shopping-cart
+          ports:
+            - containerPort: 8083
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "500m"   # Запрашиваем 0.5 ядра CPU
+              memory: "128Mi" # Запрашиваем 256 мебибайт памяти
+            limits:
+              cpu: "500m"       # Лимит в 1 ядро CPU
+              memory: "128Mi" # Лимит в 512 мебибайт памяти
+          volumeMounts:
+            - mountPath: /shopping_cart_service/log
+              name: shopping-cart-claim0
+      restartPolicy: Always
+      volumes:
+        - name: shopping-cart-claim0
+          persistentVolumeClaim:
+            claimName: shopping-cart-claim0
+status: { }

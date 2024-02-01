@@ -1,0 +1,101 @@
+version: '3.7'
+services:
+  api-gateway:
+    build: ./api_gateway_service
+    ports:
+      - "8080:8080"
+    restart: always
+    volumes:
+      - ./log/api_gateway_service:/api_gateway_service/log
+    environment:
+      - IS_LOCAL=false
+    depends_on:
+      - authentication
+      - product-management
+      - shopping-cart
+    command: bash -c "python app/main.py"
+    networks:
+      - online_electronic_store_network
+    labels:
+      kompose.service.type: LoadBalancer
+
+  authentication:
+    build: ./authentication_service
+    ports:
+      - "8081:8081"
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    command: bash -c "alembic upgrade heads && python app/main.py"
+    volumes:
+      - ./log/authentication_service:/authentication_service/log
+    environment:
+      - DEV=true
+      - IS_LOCAL=false
+    networks:
+      - online_electronic_store_network
+    labels:
+      kompose.service.type: LoadBalancer
+
+  product-management:
+    build: ./product_management_service
+    ports:
+      - "8082:8082"
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    command: bash -c "alembic upgrade heads && python app/main.py"
+    volumes:
+      - ./log/product_management_service:/product_management_service/log
+      - ./images/product:/product_management_service/images/product
+    environment:
+      - DEV=true
+      - IS_LOCAL=false
+    networks:
+      - online_electronic_store_network
+    labels:
+      kompose.service.type: LoadBalancer
+
+  shopping-cart:
+    build: ./shopping_cart_service
+    ports:
+      - "8083:8083"
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    command: bash -c "alembic upgrade heads && python app/main.py"
+    volumes:
+      - ./log/shopping_cart_service:/shopping_cart_service/log
+    environment:
+      - DEV=true
+      - IS_LOCAL=false
+    networks:
+      - online_electronic_store_network
+    labels:
+      kompose.service.type: LoadBalancer
+
+  db:
+    image: agiev/online_electronic_store_db
+    environment:
+      POSTGRES_DB: electronic_store
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: pg_isready -U $$POSTGRES_USER
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - online_electronic_store_network
+    labels:
+      kompose.service.type: LoadBalancer
+
+networks:
+  online_electronic_store_network:
+    driver: bridge
